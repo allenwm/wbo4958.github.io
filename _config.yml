@@ -8,12 +8,12 @@ exclude: [".rvmrc", ".rbenv-version", "README.md", "Rakefile", "changelog.md"]
 # Themes are encouraged to use these universal variables 
 # so be sure to set them if your theme uses them.
 #
-title : duanqz.github.io
+title : wbo4958.github.io
 tagline: Blog
 author :
-  name : Duan Qizhi
-  email : duanqz@gmail.com
-  github : duanqz
+  name : Bobby Wang
+  email : wbo4958@gmail.com
+  github : wbo4958
   #twitter : username
   #feedburner : feedname
 
@@ -25,7 +25,7 @@ author :
 # Else if you are pushing to username.github.io, replace with your username.
 # Finally if you are pushing to a GitHub project page, include the project name at the end.
 #
-production_url : https://duanqz.github.io
+production_url : https://wbo4958.github.io
 
 # Android source code url
 android_source : https://android.googlesource.com
@@ -85,10 +85,10 @@ JB :
   comments :
     provider : duoshuo
     duoshuo :
-      short_name : duanqz
+      short_name : Bobby 
     #provider : disqus
     #disqus :
-    #  short_name : duanqz
+    #  short_name : wbo4958 
     #livefyre :
     #  site_id : 123
     #intensedebate :
