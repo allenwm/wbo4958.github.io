@@ -29,7 +29,8 @@ Context.TELEPHONY_SERVICE);
 注意： 每个Context子类的实例中的mBase是不一样的，即Application/Activity/Service的实例中的具体的ContextImpl不是同一个，是不同的对象，可以通过打印 this.getBaseContext()来验证, 一、这块内容后续会讲。
 
 ### 一、ContextImpl的实例化
-当Launch一个新的Activity时，具体流程:  
+当Launch一个新的Activity时，具体流程:
+
 ``` java
 ActivityThread中performLaunchActivity() -> createBaseContextForActivity() -> ContextImpl.createActivityContext()
 new ContextImpl(…);
