@@ -17,13 +17,17 @@ tags:  [android_service]
 对这两个函数应该是概念上的混淆， ServiceManager类是hide的，因此直接通过官方的SDK是不能访问到的，那么能通过SDK访问到的那一定是Context的getSystemService().
 
 **以Telephony的service为例:**
-```java
+
+{% highlight java %}
 TelephonyManager telephonyManager = (TelephonyManager) this.getSystemService(
 Context.TELEPHONY_SERVICE);
-```
+{% endhighlight %}
 “this”是Context的实例，那么哪些类是Context的呢？从图1可以看出Application/Service/Activity都是间接继承于Context.
 
-<div align="center"><img src=/assets/images/android/getSystemService/context.svg /></div>
+<object data="/assets/images/android/getSystemService/context.svg" type="image/svg+xml">
+  <img src="/assets/images/android/getSystemService/context.svg" />
+</object>
+
 注意： 每个Context子类的实例中的mBase是不一样的，即Application/Activity/Service的实例中的具体的ContextImpl不是同一个，是不同的对象，可以通过打印 this.getBaseContext()来验证, 一、这块内容后续会讲。
 
 ### 一、ContextImpl的实例化
