@@ -71,6 +71,7 @@ final class SystemServiceRegistry {
 ```
 #### 1.2 以Telephony Service为例
 展开泛型类CachedServiceFetcher
+
 ``` java
 static abstract class CachedServiceFetcher<TelephonyManager> implements ServiceFetcher<TelephonyManager> {
     private final int mCacheIndex;
@@ -125,6 +126,7 @@ public static Object[] createServiceCache() {
 
 ### 二、获得systemService
 获得System Service是通过Context.getSystemService(String name)获得的, 而该方法最终都是通过 getBaseContext().getSystemService(String name)来获得的，即
+
 ``` java
 public Object getSystemService(String name) {
     return SystemServiceRegistry.getSystemService(this, name);
@@ -137,6 +139,7 @@ public static Object getSystemService(ContextImpl ctx, String name) {
 ```
 
 而最终会进入1.2中的
+
 ``` java
 public final TelephonyManager getService(ContextImpl ctx) {}
 ```
@@ -151,6 +154,7 @@ Android将ServiceManager隐藏起来不让上层APP直接访问，可能是因�
 
 因此为了能让用户使用到一些核心的服务，而又不能让android处于不可控的状态，这时就出现了android 的系统级服务，即通过 Context 获得的系统级服务。而这些Context获得的系统级服务大多是通过ServiceManager来获得具体的真正的系统服务来提供所需服务的。
 如：
+
 ``` java
 TelephonyManager telephonyManager = (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
 ```
@@ -161,6 +165,7 @@ Telephony作为android手机中重要的一个模块，自然而然会提供相�
 因此Android将某些必要的API通过TelephonyManager来管理并提供在SDK里。<br>
 
 如：
+
 ``` java
 public String getDeviceId() {
     try {
