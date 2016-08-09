@@ -1,0 +1,192 @@
+AMS -> ActivityManagerService
+ASS -> ActivityStackSupervisor
+AS  -> ActivityStack
+
+====================== section 1 ================================
+systemReady(AMS)
+	resumeTopActivitiesLocked (ASS) 
+	stack.resumeTopActivityLocked //在这里只有 mStacks里只加入了 mHomeStack,所以这里直接在mHomeStack里操作
+		ActivityRecord next = topRunningActivityLocked(null);   //mHomeStack里没有任何的activity. 所以这里为空
+		mStackSupervisor.resumeHomeActivity(prev);
+			mService.startHomeActivityLocked(mCurrentUser);
+				Intent intent = getHomeIntent();  //获得 MAIN/HOME intent 去查询得到Laucher
+				ActivityInfo aInfo = resolveActivityInfo(intent, STOCK_PM_FLAGS, userId);
+				mStackSupervisor.startHomeActivity(intent, aInfo);  //启动laucher
+					intent.setFlags(intent.getFlags() | Intent.FLAG_ACTIVITY_NEW_TASK);  //新启动一个新的Task
+					startActivityLocked(14个参数，只有intent, aInfo, 其它为空)
+						ActivityRecord r = new ActivityRecord() //根据intent, aInfo创建ActivityRecord
+						ActivityStack stack = getFocusedStack(); //当前栈还是mHomeStack
+							startActivityUncheckedLocked(r, sourceRecord, startFlags, true, options); //启动Activity,这个函数主要是处理栈相关
+								if (((launchFlags&Intent.FLAG_ACTIVITY_NEW_TASK) != 0 && 
+									(launchFlags&Intent.FLAG_ACTIVITY_MULTIPLE_TASK) == 0)
+									|| r.launchMode == ActivityInfo.LAUNCH_SINGLE_TASK
+									|| r.launchMode == ActivityInfo.LAUNCH_SINGLE_INSTANCE)
+										ActivityRecord intentActivity = r.launchMode != ActivityInfo.LAUNCH_SINGLE_INSTANCE
+												? findTaskLocked(r)
+												: findActivityLocked(intent, r.info);
+
+								//进入该分支从Launcher的AndroiManifest里看出来，Launcher的launchMode是singleTask的, singleTask/singleInstance表明该Activity只存在一个实例，如果要启动
+								这样的Activity,那么不用再新创建一个实例，直接在系统中查找，并将它bring up 到front即可，在这里intentActivity显然是null
+							
+								if (r.resultTo == null && !addingToTask&& (launchFlags&Intent.FLAG_ACTIVITY_NEW_TASK) != 0) { //在这里就要将activity放到一个新的task中了.
+									targetStack = adjustStackFocus(r); //调整focus的stack, 在这里直接用的是mHomeStack
+									r.setTask(targetStack.createTaskRecord(getNextTaskId(), 
+										newTaskInfo != null ? newTaskInfo : r.info,
+										newTaskIntent != null ? newTaskIntent : intent,
+										true), null, true);
+									//创建一个新的TaskRecord, 并将新的TaskRecord插入到mTaskHistory中顶部，并且将activity与task关联起来
+
+								}
+								targetStack.startActivityLocked()  //mHomeStack 其中 doResume是立即resume, newTask=true
+									task.addActivityToTop(r); //将ActivityRecord加入到最新的task的mActivities里
+									if (!isHomeStack() || numActivities() > 0) { //此时，mHomeStack里已经有一个task了，并且task里已经有一个ActivityRecord了
+									}
+									if (doResume) {  //开始恢复top activity
+									mStackSupervisor.resumeTopActivitiesLocked()  //跳到下一节
+									}
+
+								mService.setFocusedActivityLocked(r); //将当前Launcher的ActivityRecord调置为 focused activity
+									mFocusedActivity = r;
+
+									
+====================== section 2 ================================
+resumeTopActivitiesLocked ()  //in ASS
+	targetStack = getFocusedStack(); //当前还是mHomeStack
+	stack.resumeTopActivityLocked(target, targetOptions);  //这里target为null
+		ActivityRecord next = topRunningActivityLocked(null);  //找到当前正在running的activity进行恢复，在经过section 1后，该值不再为空了，其值为Laucher对应的ActivityRecord,
+		mStoppingActivities.remove(next) mGoingToSleepActivities.remove(next) mWaitingVisibleActivities.remove(next) //从上述三个list中remove掉
+		
+		AppGlobals.getPackageManager().setPackageStoppedState() //将Laucher package设置为非stoped状态，因为已经在resume了
+		mStackSupervisor.startSpecificActivityLocked(next, true, true); //因为这里是新创建application，所以app app.thread都为空
+			mService.startProcessLocked() 
+				mBadProcesses.remove() // 如果可能，clear bad process
+				app = newProcessRecordLocked() //生成一个 ProcessRecord来表示进程相关的信息
+				startProcessLocked(app, xxx, xxx) //
+					Process.ProcessStartResult startResult = Process.start("android.app.ActivityThread", ...) //通过 zygnote开启一个进程，如果成功，会返回pid, gid, group等等
+						startViaZygote()
+					mHandler.obtainMessage(PROC_START_TIMEOUT_MSG, 10s) //如果开启成功的话，AMS会在10s内等待应用程序与AMS通信。如果不通信，则是有问题的。
+					
+
+===================== section 3 =================================
+ActivityThread.main() //应用程序的主线程开始运行
+
+	Looper.prepareMainLooper();  //主线程的looper
+	ActivityThread thread = new ActivityThread();  //生成ActivityThread的对应
+			ApplicationThread mAppThread = new ApplicationThread();   //这句初始化并非在main里，而是ActivityThread里的一个全局变量
+
+	thread.attach(false);      //attach 应用程序 
+		mSystemThread = false; //非system线程 
+		android.ddm.DdmHandleAppName.setAppName("<pre-initialized>", ...) //刚开始时，应用程序还没有与任何application绑定，也不知道进程名什么的
+		IActivityManager mgr = ActivityManagerNative.getDefault();  //通过 serviceManager获得activity的对象, binder
+		mgr.attachApplication(mAppThread);  //调用AMS的attachApplication
+			attachApplicationLocked() //In AMS, 将应用程序的pid和ApplicationThread对象传给AMS进行管理
+				app = mPidsSelfLocked.get(pid); //通过应用程序的 pid 获得对应的ProcessRecord
+				app.makeActive(thread, mProcessStats); //设置ProcessRecord相关的信息，将应用程序的ApplicationThread对象保存到app里
+				mHandler.removeMessages(PROC_START_TIMEOUT_MSG, app) //应用程序在10s attachApplication了
+				ensurePackageDexOpt //dexopt
+				thread.bindApplication() //将Application info, providers 与应用程序进行绑定
+					AppBindData data = new AppBindData(); //在应用程序中，将AMS传过来的 application info/ provider 等相关信息保存到data中
+					sendMessage(H.BIND_APPLICATION, data);
+	Looper.loop();
+	
+	在handler里
+	handleMessage(Message msg) {
+	case BIND_APPLICATION:
+		handleBindApplication()
+			android.ddm.DdmHandleAppName.setAppName(data.processName, ...) //设置DDMS的进程名为该应用程序的process name
+			if (data.persistent)  //如果是persistent的application, 禁用硬件加速
+			updateDefaultDensity  //屏幕密度相关
+			
+			data.info = getPackageInfoNoCheck(data.appInfo, data.compatInfo); //根据applicationInfo, 生成一个唯一与apk 对应的LoadedApk
+			
+			final ContextImpl appContext = new ContextImpl(); //生成一个context，并进行初始化, 指向LoadedApk, 在这个case中，这个context没什么鸟用，它用在instrumentation中
+			appContext.init(data.info, null, this);
+			
+			mInstrumentation = new Instrumentation(); //生成一个Instrumentation 工具类，ActivityThread通过它来创建其它组件类，组件与组件的交互也是通过 Instrumentation来的
+			
+			Application app = data.info.makeApplication(data.restrictedBackupMode, null); //根据LoadedApk生成Application, 一个apk对应一个Application
+				ContextImpl appContext = new ContextImpl();
+				appContext.init(this, null, mActivityThread);  //为LoadedApk生成一个Context
+				app = mActivityThread.mInstrumentation.newApplication(
+								cl, appClass, appContext); //创建Application, 注意 Application也是context
+						Application app = (Application)clazz.newInstance();  //实例化
+						app.attach(context);  //attach,
+							mBase = base;   //将Application这个context作为整个进程的base context, 生命周期贯穿整个进程
+				appContext.setOuterContext(app);
+				mActivityThread.mAllApplications.add(app);  //将application放到主线程中的mAllApplications里，从这里可以看出来，一个进程可以有多个application, 但是一个apk只有一个application,即一个进程可以同时跑多个apk
+				mApplication = app;
+
+            mInitialApplication = app;
+			
+			List<ProviderInfo> providers = data.providers;
+            installContentProviders(app, providers);   //往AMS中安装content provider, 这个比Application还前，牛B
+				ActivityManagerNative.getDefault().publishContentProviders().
+			
+			mInstrumentation.onCreate(data.instrumentationArgs);  //这个是instrument case有关的，在这里没什么用
+			
+			mInstrumentation.callApplicationOnCreate(app);  //开始执行 Application 的onCreate啦
+	}
+	
+=========================== section 4 =====================================
+if (normalMode) mStackSupervisor.attachApplicationLocked(app, mHeadless)   //AMS 在通知应用程序 bindApplication后，正入后续的操作
+	attachApplicationLocked // in ASS中
+		ActivityRecord hr = stack.topRunningActivityLocked(null); //找到Launcher对应的ActivityRecord
+			if (hr.app == null ... ) //在这里 ActivityRecord还没有与ProcessRecord进行关联
+			realStartActivityLocked(hr, app, true, true) // 启动Activity
+				r.app = app; 
+				app.activities.add(r);   //将ActivityRecord与ProcessRecord进行关联
+				app.thread.scheduleLaunchActivity()
+					ActivityClientRecord r = new ActivityClientRecord() //生成Activity 对应的类
+					sendMessage(H.LAUNCH_ACTIVITY, r);
+					
+						handleMessage()  //in case LAUNCH_ACTIVITY
+							handleLaunchActivity(r, null);
+								unscheduleGcIdler(); // stop GC, 正在launch Activity, 这时还在GC，会有问题？
+								performLaunchActivity(r, customIntent);  //开始 Activity 的生命周期
+									java.lang.ClassLoader cl = r.packageInfo.getClassLoader();
+									activity = mInstrumentation.newActivity(cl, component.getClassName(), r.intent); //通过反射获得Activity 实例
+									
+									Application app = r.packageInfo.makeApplication(false, mInstrumentation);  //这个app就是整个application, 在之前已经初始化过了，可以看出，如果之前没有初始化的话，会优先初始化application
+										activity.attach(appContext, this, ...) // fragment, window, context什么的，即初始化Activity
+										mInstrumentation.callActivityOnCreate(activity, r.state);  // 进入Activity 的 onCreate()
+										if (!r.activity.mFinished) activity.performStart()  //进入Activity 的 onStart()
+										if (!r.activity.mFinished) if (r.state != null) mInstrumentation.callActivityOnRestoreInstanceState(activity, r.state); //如果是被回收了，在这里恢复
+								handleResumeActivity()
+									performResumeActivity //进入 onResume阶段
+									
+									if (!r.onlyLocalRequest) Looper.myQueue().addIdleHandler(new Idler());  //并非 local的请求，跨进程的请求？？？
+										Idler() 以最低优先级运行
+											IActivityManager am = ActivityManagerNative.getDefault();
+											am.activityIdle()  //通过 AMS activityIdle
+												ActivityStack stack = ActivityRecord.getStackLocked(token); //这里是mHomeStack
+												mStackSupervisor.activityIdleInternalLocked
+													mHandler.removeMessages(IDLE_TIMEOUT_MSG, r);   //remove掉 timeout的msg
+													if (booting) 
+														mService.finishBooting();   //广播 ACTION_BOOT_COMPLETED， 完成正式的启动
+											
+			stack.minimalResumeActivityLocked()   //mHomeStack 进行resume activity 
+				mResumedActivity = r;  //将Laucher对应的ActivityRecord
+				mService.addRecentTaskLocked(r.task); //加入recent的task
+				completeResumeLocked()   // resume
+					scheduleIdleTimeoutLocked()
+						mHandler.obtainMessage(IDLE_TIMEOUT_MSG, next)
+						mHandler.sendMessageDelayed(msg, IDLE_TIMEOUT);  //AMS 等待10S 接收应用程序 的 activiyIdle()调用  
+			
+mServices.attachApplicationLocked  //在 ActiveServices里 check是否需要跑 service
+	realStartServiceLocked(sr, proc, sr.createdFromFg);
+				
+
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	

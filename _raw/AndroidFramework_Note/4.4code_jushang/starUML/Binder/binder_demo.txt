@@ -1,0 +1,183 @@
+int main(int argc, char **argv) {
+
+    if (argc == 1) {
+        LOGD("We're the service");
+
+        defaultServiceManager()->addService(String16("Demo"), new Demo());
+        android::ProcessState::self()->startThreadPool();
+        LOGD("Demo service is now ready");
+        IPCThreadState::self()->joinThreadPool();
+        LOGD("Demo service thread joined");
+    }
+
+    return 0;
+}
+
+=================== server 端 将 Demo 加入到 ServiceManager 里 ====================
+defaultServiceManager()->addService(String16("Demo"), new Demo());  //获得全局的IServiceManager, 在Native中要使用binder服务，都会先定义服务类, 如 IServiceManager 继承 IInterface, 该IServiceManager是整个系统共用的，Service和Client都公用同一个接口类
+	sp<IServiceManager> gDefaultServiceManager; //等价于 IServiceManager * gDefaultServiceManager;
+	gDefaultServiceManager = interface_cast<IServiceManager>(ProcessState::self()->getContextObject(NULL));
+	分三步执行
+	1. ProcessState::self()->getContextObject(NULL); 得到一个new BpBinder(0);
+	2. interface_cast<IServiceManager>(new BpBinder(0)) ==> IServiceManager.asInterface(new BpBinder(0))
+	3. gDefaultServiceManager->addService(String16("Demo"), new Demo())
+	
+Step 1,
+ProcessState::self()->getContextObject(NULL)//单例，一个进程只有一个ProcessState，该类管理所有的该进程需要访问的Service在本进程中对应的BpBinder
+	sp<ProcessState> gProcess;  //等价于 ProcessState* gProcess;
+	gProcess = new ProcessState;
+		mDriverFD = open_driver()  //打开 binder 驱动, 并设置最大线程数为15个，打开的文件句柄保存到 mDriverFD中
+		mVMStart = mmap(0, BINDER_VM_SIZE, PROT_READ, MAP_PRIVATE | MAP_NORESERVE, mDriverFD, 0); //将物理地址映射到虚拟地址(大小为1M-8k)，用户态可以直接访问内存，这种直接比用户态与内核态拷贝数据更高效
+		
+	getContextObject(NULL) -> getStrongProxyForHandle(0)
+		handle_entry* e = lookupHandleLocked(0);
+			mHandleToObject.insertAt(e, N, handle+1-N); //所有的handle_entry(保存IBinder接口)保存到mHandleToObject
+			e->binder = new BpBinder(0);  //生成一个Service Manager对应的的远端的 BpBinder
+				IPCThreadState::self()->incWeakHandle(0) //单例模式的IPCThreadState，负责与binder驱动进行交互，这里增加一个弱引用
+					new IPCThreadState;
+						mProcess(ProcessState::self()) //保存ProcessState到mProcess
+						mCallingPid = getpid(); //保存 pid/uid
+						mCallingUid = getuid();
+						mIn.setDataCapacity(256);  //mIn/mOut 是Parcel类型
+						mOut.setDataCapacity(256);
+
+Step2,
+IServiceManager.asInterface(new BpBinder(0))
+	intr = new BpServiceManager(new BpBinder(0));  //在IMPLEMENT_META_INTERFACE(ServiceManager, "android.os.IServiceManager");
+		BpServiceManager(&(new BpBinder(0)): BpInterface<IServiceManager>(new BpBinder(0))
+			BpInterface(const &(new BpBinder(0)) : BpRefBase(new BpBinder(0)) //将BpBinder保存到 mRemote里
+
+Step3,
+从上述的分析可以看出来gDefaultServiceManager 是一个BpServiceManager, Bp -> Binder Proxy(client端), Bn -> Binder Native(Server端)
+gDefaultServiceManager->addService(String16("Demo"), new Demo());
+	Parcel data, reply;
+	data.writeInterfaceToken(IServiceManager::getInterfaceDescriptor());
+	data.writeString16(name);
+	data.writeStrongBinder(service); 
+		flatten_binder(ProcessState::self(), val, this);  //flat binder
+	status_t err = remote()->transact(ADD_SERVICE_TRANSACTION, data, &reply)  //data是要传递下去的Parcel数据，reply是接收返回的数据,remote()就是刚刚在step2中返回的 BpBinder(0)
+		IPCThreadState::self()->transact();
+			err = writeTransactionData(BC_TRANSACTION, flags, handle, code, data, NULL); //将参数填充进binder_transaction_data，并将填充好的数据 memcpy到 Parcel mOut 的mData+mDataPos后
+			err = waitForResponse(reply);  //非 oneway
+				while (1) {
+					if ((err=talkWithDriver()) < NO_ERROR) break;  //默认talkWithDriver(bool doReceive = true)
+						binder_write_read bwr; //该结构是直接将用户态的数据传递给内核态
+						const bool needRead = mIn.dataPosition() >= mIn.dataSize();  //刚开始，needRead为true
+						bwr.write_size = mOut.dataSize();
+						bwr.write_buffer = (long unsigned int)mOut.data();
+						bwr.read_size = mIn.dataCapacity();  //
+						bwr.read_buffer = (long unsigned int)mIn.data(); //读出来的数据放到 mIn.data()里
+						
+						ioctl(mProcess->mDriverFD, BINDER_WRITE_READ, &bwr) //将数据bwr发送到binder driver,并将server端处理后的数据也填入到 bwr中，
+					
+						if (bwr.write_consumed > 0) { //计算发送了多少数据到binder driver, 修改mOut中的偏移
+							if (bwr.write_consumed < (ssize_t)mOut.dataSize())
+								mOut.remove(0, bwr.write_consumed);
+							else
+								mOut.setDataSize(0);
+						}
+						if (bwr.read_consumed > 0) {  //设置 mIn里的偏移，数据大小
+							mIn.setDataSize(bwr.read_consumed);
+							mIn.setDataPosition(0);
+						}
+					
+					cmd = mIn.readInt32();  //BC_TRANSACTION -> BR_REPLY， 对于client, server返回的就是 BR_REPLY
+					switch(cmd) {
+					case BR_TRANSACTION_COMPLETE:
+						if (!reply && !acquireResult) goto finish; //每一个TRANSACTION/REPLAY 都会返回BR_TRANSACTION_COMPLETE，但是这个要求有reply, 所以会等待 BC_REPLY
+					case BR_REPLY:
+						binder_transaction_data tr;
+						err = mIn.read(&tr, sizeof(tr));  //读出server 返回回来的数据
+						reply->ipcSetDataReference(); //将server 返回的数据结果填入到 reply里
+						goto finish;
+					}
+				}
+				
+	return err == NO_ERROR ? reply.readExceptionCode() : err; //设置transact的返回结果，
+	
+=================== server 端将自己的服务加入到ServiceManager后(这样系统就可以通过ServiceManager来获得Demo的IBinder接口访问Demo服务了)，开始要监听client的访问请求了 
+android::ProcessState::self()->startThreadPool();  //开启线程池监听
+	spawnPooledThread(true);
+		String8 name = makeBinderThreadName();  //Binder 线程名  Binder_x
+		sp<Thread> t = new PoolThread(true);
+		t->run(name.string());
+			IPCThreadState::self()->joinThreadPool(true); //IPCThreadState 单例，已经初始化过了
+				mOut.writeInt32(isMain ? BC_ENTER_LOOPER : BC_REGISTER_LOOPER);  //进入 BC_ENTER_LOOPER
+================================ 死循环接收数据并处理 ======================================
+				do {
+					result = getAndExecuteCommand();
+						result = talkWithDriver();  //从Binder里读取数据
+							cmd = mIn.readInt32();
+							result = executeCommand(cmd);
+								switch (cmd) {
+								case BR_TRANSACTION:
+									binder_transaction_data tr;
+									result = mIn.read(&tr, sizeof(tr)); //将数据从mIn里读取binder_transaction_data出来
+									mCallingPid = tr.sender_pid;  //获得发送者的 pic/uid
+									mCallingUid = tr.sender_euid;
+									Parcel reply;  //server 调用后的回复reply
+									sp<BBinder> b((BBinder*)tr.cookie); //获得跟服务相关的 BBinder, 然后进行调用
+									const status_t error = b->transact(tr.code, buffer, &reply, tr.flags); //BBinder调用transact
+										err = onTransact(code, data, reply, flags); //这时候就回到了Demo中提供的服务中了
+										
+									sendReply(reply, 0); //如果没有设置  TF_ONE_WAY，发送reply
+										err = writeTransactionData(BC_REPLY, flags, -1, 0, reply, &statusBuffer); //填定好binder_transaction_data
+										
+										return waitForResponse(NULL, NULL)  //等待 BR_TRANSACTION_COMPLETE
+									break;
+
+								}
+				} while (result != -ECONNREFUSED && result != -EBADF);
+				
+//这时候就回到了Demo中提供的服务中了
+BnDemo::onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
+switch(code) {
+	case ADD: {
+		int32_t inV1 = data.readInt32();
+		int32_t inV2 = data.readInt32();
+		int32_t sum = add(inV1, inV2); //获得服务运算
+		reply->writeInt32(sum); //返回给调用者结果
+		return NO_ERROR;
+	} break;
+}
+
+==========
+最后 IPCThreadState::self()->joinThreadPool(); 同样是进入 loop, 感觉没什么用
+
+
+===========================================================================================
+===========================================================================================
+===========================================================================================
+client 调用 add 服务
+===========================================================================================
+===========================================================================================
+===========================================================================================
+	sp<IDemo> demo = getDemoServ();
+	const int32_t adder = 5;
+	int32_t sum = demo->add(v, adder);
+	
+sp<IDemo> demo = getDemoServ();
+	sp<IServiceManager> sm = defaultServiceManager(); //见前面server的分析获得 IServiceManager的 BpServiceManager
+	sp<IBinder> binder = sm->getService(String16("Demo")); //获得 Demo 的 IBinder接口
+	sp<IDemo> demo = interface_cast<IDemo>(binder); //将从ServiceManager得到Demo的binder对象存入到 mRemote 中
+		demo = new BpDemo() //将
+	return demo;
+
+int32_t sum = demo->add(v, adder); //调用 BpDemo 的 add() 函数
+	data.writeInterfaceToken(IDemo::getInterfaceDescriptor());
+	data.writeInt32(v1);
+	data.writeInt32(v2);  //将参数写入到data中
+	remote()->transact(ADD, data, &reply);   //remote() 返回 从ServiceManager得到Demo的BpBinder代理，进行传入
+		status_t status = IPCThreadState::self()->transact(mHandle, code, data, reply, flags); //可以参见上面的分析
+	status_t status = reply.readInt32(&res);
+	return res;
+
+
+
+
+
+
+
+
+
+

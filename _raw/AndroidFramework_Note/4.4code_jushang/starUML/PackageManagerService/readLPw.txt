@@ -1,0 +1,16 @@
+mRestoredSettings = mSettings.readLPw()，该函数意在为读取 Setting文件，即 /data/system/packages.xml
+
+分为三种情况.
+第一种情况,
+系统第一次启动，该函数返回直接返回 false. 因为第一次系统并没有 /data/system/packages.xml 文件
+
+
+第二种情况, 
+系统异常， 即系统里有 /data/system/packages_backup.xml 和 /data/system/packages.xml 时，该函数会将 /data/system/packages.xml 删除掉，因为这时该packages.xml 可能已经损坏。 这时候系统读取 /data/system/packages_backup.xml这个文件。
+
+
+第三种情况,
+系统正常，且非第一次启动，即系统里只有 /data/system/packages.xml，而没有 /data/system/packages_backup.xml, 这时系统直接读取/data/system/packages.xml文件  
+
+xxx
+

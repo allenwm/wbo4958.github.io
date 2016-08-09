@@ -1,0 +1,41 @@
+AMS.systemReady(callback) //
+	UsbService.systemReady -> UsbDeviceManager.systemReady()
+		Settings.Global.putInt(mContentResolver, Settings.Global.ADB_ENABLED, mAdbEnabled ? 1 : 0); //写入到 mAdbEnabled值
+			AdbSettingsObserver->onChanged  //接着触发AdbSettingsObserver, 只要 ADB_ENABLED 这个值改变了就会触发该值 
+			setAdbEnabled(msg.arg1 == 1);  //开始开启adb enable
+
+在UsbDeviceManager里
+setAdbEnabled //主要的作用是更新几个property的值 ，而这些值直接会触发 init里的条件
+
+	第一次开机，全志默认是persist.sys.usb.config=mass_storage,adb
+	persist.sys.usb.config  //保留上次默认的配置，在初始化UsbHandle时会先得到，然后会做判断
+
+	sys.usb.config   //这个是很关键的property， 该值会直接导致改变usb 模式,只要该值里含有 adb的，都会start adbd
+	在  init.usb.rc 里 
+	on property:sys.usb.config=none
+		stop adbd    //停止 adbd
+		write /sys/class/android_usb/android0/enable 0
+		write /sys/class/android_usb/android0/bDeviceClass 0
+		setprop sys.usb.state ${sys.usb.config}
+
+	on property:sys.usb.config=adb
+		write /sys/class/android_usb/android0/enable 0  //先停
+		write /sys/class/android_usb/android0/idVendor 18d1
+		write /sys/class/android_usb/android0/idProduct D002
+		write /sys/class/android_usb/android0/functions ${sys.usb.config}
+		write /sys/class/android_usb/android0/enable 1
+		start adbd   //开启adbd
+		setprop sys.usb.state ${sys.usb.config}
+
+	on property:persist.sys.usb.config=*     //同理，只要设置persist.sys.usb.config 都会导到sys.usb.config被设置
+		setprop sys.usb.config ${persist.sys.usb.config}
+
+	persist.adb.notify 
+	值为1会在statusBar 上 显示通知，打开后会进入开发者模式  DevelopmentSettings
+	值为0 不会在statusBar上显示通知
+
+=================================== 当关闭 usb debug 模式后，SystemUI 会弹出 UsbStorageActivity 界面, 这个会阻止主程序开机自启动 ======
+在 SystemUI 里会往 StorageManager 里注册 StorageNotificationEventListener
+mStorageManager.registerListener(new StorageNotificationEventListener()); 而 StorageNotificationEventListener 会回调 onUsbMassStorageConnectionChanged 或者 onStorageStateChanged，这两个会导致UsbStorageActivity 界面打开
+
+当有IMountService发生改变时，会通过 MountServiceBinderListener 来通知 SystemUI里对应的StorageNotificationEventListener的触发
