@@ -7,8 +7,6 @@ tags:  [android_service]
 ---
 {% include JB/setup %}
 
-## getSystemService与getService的区别与联系
-
 >在做APP开发时，经常会使用到系统提供的一些服务--比如获得Wifi、Telephony相关的信息，而这些服务都是通过context.getSystemService(String name)获取的; <br>
 而在做系统开发时，又会经常使用到ServiceManager.getService()去获得server端提供的服务。<br>
 那么从Context里获得的Service和ServiceManager里getService()获得的Service是一样的么？它们是一个怎样的关系的呢？
@@ -32,20 +30,20 @@ Context.TELEPHONY_SERVICE);
 
 ### 一、ContextImpl的实例化
 当Launch一个新的Activity时，具体流程:  
-```java
+``` java
 ActivityThread中performLaunchActivity() -> createBaseContextForActivity() -> ContextImpl.createActivityContext()
 new ContextImpl(…);
 ```
 在得到一个类的对象之前，首先会初始化该类的成员变量(按照类初始化顺序… ), 这里假设是第一次创建ContextImpl实例(实际上第一次初始化ContextImpl是在创建系统Context时，即createSystemContext())
 
-```java
+``` java
 // The system service cache for the system services that are cached per-ContextImpl.
 final Object[] mServiceCache = SystemServiceRegistry.createServiceCache();
 ```
 通过调用SystemServiceRegistry中的静态方法createServiceCache()，该方法会先触发SystemServiceRegistry中静态方法/静态块的初始化，然后才会调用到createServiceCache().
 
 #### 1.1 首先初始化SystemServiceRegistry里的静态变量/执行静态块
-```java
+``` java
 final class SystemServiceRegistry {
     private static final HashMap<Class<?>, String> SYSTEM_SERVICE_NAMES =
             new HashMap<Class<?>, String>();
@@ -72,7 +70,7 @@ final class SystemServiceRegistry {
 ```
 #### 1.2 以Telephony Service为例
 展开泛型类CachedServiceFetcher
-```java
+``` java
 static abstract class CachedServiceFetcher<TelephonyManager> implements ServiceFetcher<TelephonyManager> {
     private final int mCacheIndex;
     // mCacheIndex用在 ContextImpl里的mServiceCache数组中。
@@ -110,7 +108,7 @@ static abstract class CachedServiceFetcher<TelephonyManager> implements ServiceF
 ```
 
 #### 1.3 将所有的ServiceFetcher放到 HashMap里
-```java
+``` java
 private static <T> void registerService(String serviceName, Class<T> serviceClass, ServiceFetcher<T> serviceFetcher) {
     SYSTEM_SERVICE_NAMES.put(serviceClass, serviceName);
     SYSTEM_SERVICE_FETCHERS.put(serviceName, serviceFetcher);
@@ -118,7 +116,7 @@ private static <T> void registerService(String serviceName, Class<T> serviceClas
 ```
 
 #### 1.4 初始化ContextImpl里的成员变量 mServiceCache.
-```java
+``` java
 public static Object[] createServiceCache() {
     return new Object[sServiceCacheSize]; //用来保存所有的Service
 }
@@ -126,7 +124,7 @@ public static Object[] createServiceCache() {
 
 ### 二、获得systemService
 获得System Service是通过Context.getSystemService(String name)获得的, 而该方法最终都是通过 getBaseContext().getSystemService(String name)来获得的，即
-```java
+``` java
 public Object getSystemService(String name) {
     return SystemServiceRegistry.getSystemService(this, name);
 }
@@ -138,7 +136,7 @@ public static Object getSystemService(ContextImpl ctx, String name) {
 ```
 
 而最终会进入1.2中的
-```java
+``` java
 public final TelephonyManager getService(ContextImpl ctx) {}
 ```
 
@@ -152,7 +150,7 @@ Android将ServiceManager隐藏起来不让上层APP直接访问，可能是因�
 
 因此为了能让用户使用到一些核心的服务，而又不能让android处于不可控的状态，这时就出现了android 的系统级服务，即通过 Context 获得的系统级服务。而这些Context获得的系统级服务大多是通过ServiceManager来获得具体的真正的系统服务来提供所需服务的。
 如：
-```java
+``` java
 TelephonyManager telephonyManager = (TelephonyManager) this.getSystemService(Context.TELEPHONY_SERVICE);
 ```
 
@@ -162,7 +160,7 @@ Telephony作为android手机中重要的一个模块，自然而然会提供相�
 因此Android将某些必要的API通过TelephonyManager来管理并提供在SDK里。<br>
 
 如：
-```java
+``` java
 public String getDeviceId() {
     try {
         ITelephony telephony = getITelephony();
