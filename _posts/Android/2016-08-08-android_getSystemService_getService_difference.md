@@ -20,7 +20,7 @@ tags:  [android_service]
 TelephonyManager telephonyManager = (TelephonyManager) this.getSystemService(
 Context.TELEPHONY_SERVICE);
 {% endhighlight %}
-“this”是Context的实例，那么哪些类是Context的呢？从图1可以看出Application/Service/Activity都是间接继承于Context.
+"this"是Context的实例，那么哪些类是Context的呢？从下图可以看出Application/Service/Activity都是间接继承于Context.
 
 <object data="/assets/images/android/getSystemService/context.svg" type="image/svg+xml">
   <img src="/assets/images/android/getSystemService/context.svg" />
@@ -29,10 +29,10 @@ Context.TELEPHONY_SERVICE);
 注意： 每个Context子类的实例中的mBase是不一样的，即Application/Activity/Service的实例中的具体的ContextImpl不是同一个，是不同的对象，可以通过打印 this.getBaseContext()来验证, 一、这块内容后续会讲。
 
 ### 一、ContextImpl的实例化
-当Launch一个新的Activity时，具体流程:
+ActivityThread launch一个新的Activity时，具体流程:
 
 ``` java
-ActivityThread中performLaunchActivity() -> createBaseContextForActivity() -> ContextImpl.createActivityContext()
+performLaunchActivity() -> createBaseContextForActivity() -> ContextImpl.createActivityContext() ->
 new ContextImpl(…);
 ```
 在得到一个类的对象之前，首先会初始化该类的成员变量(按照类初始化顺序… ), 这里假设是第一次创建ContextImpl实例(实际上第一次初始化ContextImpl是在创建系统Context时，即createSystemContext())
@@ -69,6 +69,7 @@ final class SystemServiceRegistry {
     }
 }
 ```
+
 #### 1.2 以Telephony Service为例
 展开泛型类CachedServiceFetcher
 
