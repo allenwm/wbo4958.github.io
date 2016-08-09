@@ -188,7 +188,7 @@ public String getDeviceId() {
      return ITelephony.Stub.asInterface(ServiceManager.getService(Context.TELEPHONY_SERVICE));
  }
 
-TelephonyManager将getITelephony隐藏起来了，只提供必要的API，如getDeviceId()，同理还有
+//TelephonyManager将getITelephony隐藏起来了，只提供必要的API，如getDeviceId()，同理还有
 
 /**
 * @hide
@@ -205,5 +205,6 @@ private IPhoneSubInfo getSubscriberInfo() {
      return IPhoneSubInfo.Stub.asInterface(ServiceManager.getService("iphonesubinfo"));
  }
 ```
+
 ### 四、总结：
 系统级的service仅仅起了一个router的功能，它将对应的请求通过系统中的ServiceManager中的service去请求真正对应的服务。
