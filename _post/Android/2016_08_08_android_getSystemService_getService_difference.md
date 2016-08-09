@@ -3,7 +3,7 @@ layout: post
 category: Android
 title: getSystemService与getService的区别与联系
 tagline:
-tags:  [getSystemService,getService]
+tags:  [android_service]
 ---
 {% include JB/setup %}
 
