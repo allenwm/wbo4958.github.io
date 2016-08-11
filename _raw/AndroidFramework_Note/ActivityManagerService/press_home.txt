@@ -1,0 +1,81 @@
+interceptKeyBeforeDispatching -> interceptKeyBeforeDispatching(PhoneWindowManager)
+-> handleShortPressOnHome -> launchHomeFromHotKey
+
+startActivityUncheckedLocked
+
+		//由于Launcher3的Launcher主activity 定义的是singletask，所以会进入这个分支 
+        if (((launchFlags & Intent.FLAG_ACTIVITY_NEW_TASK) != 0 &&
+                (launchFlags & Intent.FLAG_ACTIVITY_MULTIPLE_TASK) == 0)
+                || launchSingleInstance || launchSingleTask) {
+            // If bring to front is requested, and no result is requested and we have not
+            // been given an explicit task to launch in to, and
+            // we can find a task that was started with this same
+            // component, then instead of launching bring that one to the front.
+            if (inTask == null && r.resultTo == null) {
+                // See if there is a task to bring to the front.  If this is
+                // a SINGLE_INSTANCE activity, there can be one and only one
+                // instance of it in the history, and it is always in its own
+                // unique task, so we do a special search.
+                Log.d("bobby", "ASS startActivityUncheckedLocked --- find ActivityRecord");
+				//非 launchSingleInstance, 直接从task里找ActivityRecord,这里查找是在每个task里查找是否在最上面，如果是在最上面，那么直接bring to front
+                ActivityRecord intentActivity = !launchSingleInstance ?
+                        findTaskLocked(r) : findActivityLocked(intent, r.info);
+                Log.d("bobby", "ASS startActivityUncheckedLocked find intentActivity:" + intentActivity);
+                if (intentActivity != null) {
+                    // When the flags NEW_TASK and CLEAR_TASK are set, then the task gets reused
+                    // but still needs to be a lock task mode violation since the task gets
+                    // cleared out and the device would otherwise leave the locked task.
+                    if (isLockTaskModeViolation(intentActivity.task,
+                            (launchFlags & (FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK))
+                            == (FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK))) {
+                        showLockTaskToast();
+                        Slog.e(TAG, "startActivityUnchecked: Attempt to violate Lock Task Mode");
+                        return ActivityManager.START_RETURN_LOCK_TASK_MODE_VIOLATION;
+                    }
+					//这个ActivityRecord只是临时生成的对象，真正resume的时候是resume home stack里的Launcher那个ActivityRecord
+                    if (r.task == null) {
+                        r.task = intentActivity.task;
+                    }
+                    if (intentActivity.task.intent == null) {
+                        // This task was started because of movement of
+                        // the activity based on affinity...  now that we
+                        // are actually launching it, we can assign the
+                        // base intent.
+                        intentActivity.task.setIntent(r);
+                    }
+                    targetStack = intentActivity.task.stack;
+                    targetStack.mLastPausedActivity = null;
+                    // If the target task is not in the front, then we need
+                    // to bring it to the front...  except...  well, with
+                    // SINGLE_TASK_LAUNCH it's not entirely clear.  We'd like
+                    // to have the same behavior as if a new instance was
+                    // being started, which means not bringing it to the front
+                    // if the caller is not itself in the front.
+                    final ActivityStack focusStack = getFocusedStack();
+                    ActivityRecord curTop = (focusStack == null)
+                            ? null : focusStack.topRunningNonDelayedActivityLocked(notTop);
+                    boolean movedToFront = false;
+                    if (curTop != null && (curTop.task != intentActivity.task ||
+                            curTop.task != focusStack.topTask())) {
+                        Log.d("bobby", "ASS startActivityUncheckedLocked ---===---- curTop:"+curTop);
+                        r.intent.addFlags(Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT);
+                        if (sourceRecord == null || (sourceStack.topActivity() != null &&
+                                sourceStack.topActivity().task == sourceRecord.task)) {
+                            // We really do want to push this one into the user's face, right now.
+                            if (launchTaskBehind && sourceRecord != null) {
+                                intentActivity.setTaskToAffiliateWith(sourceRecord.task);
+                            }
+                            movedHome = true;
+                            targetStack.moveTaskToFrontLocked(intentActivity.task, noAnimation,
+                                    options, r.appTimeTracker, "bringingFoundTaskToFront");
+                            Log.d("bobby", "ASS moveTaskToFrontLocked ---===---- done");
+                            movedToFront = true;
+                            if ((launchFlags &
+                                    (FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_TASK_ON_HOME))
+                                    == (FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_TASK_ON_HOME)) {
+                                // Caller wants to appear on home activity.
+                                intentActivity.task.setTaskToReturnTo(HOME_ACTIVITY_TYPE);
+                            }
+                            options = null;
+                        }
+                    }
