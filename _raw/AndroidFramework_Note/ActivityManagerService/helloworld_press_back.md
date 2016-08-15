@@ -1,19 +1,27 @@
-Scenario
-在HelloWorld的MainActivity里按 back 键. 注意 MainActivity里并没有override onBackPressed或onKeyDown
+这篇文章讲述 finish activity.
+考虑如下场景
+1. Launcher打开HelloWorld app, 这时MainActivity获得焦点并显示
+2. 按 back 键回到Launcher界面
+注意 MainActivity里并没有override onBackPressed或onKeyDown, 这样back键就不会被拦截。
 
+下面来看下 keyevent 的传递 stack
 ``` java
-    -> dispatchKeyEvent (PhoneWindow)
+ -> dispatchInputEventFinished(InputEventSender)
+ -> onInputEventFinished(InputMethodManager)
+ ...
+    -> dispatchKeyEvent (PhoneWindow@DecorView)
     -> dispatchKeyEvent (Activity)
-      -> dispatch
-       -> onKeyDown
-        -> onBackPressed
-         -> finishAfterTransition
-          -> finish -> finish(false);
-           -> finishActivity (ActivityManagerService)
-
+      -> dispatch (Activity)
+       -> onKeyDown (Activity)
+        -> onBackPressed (Activity)
+         -> finishAfterTransition (Activity)
+          -> finish (Activity) ->
+           -> finish(false) (Activity)
+            -> finishActivity (ActivityManagerService)
 ```
-注意  Activity 传过来的 finish(false) 的意思是不会finish activity所在的task, 仅仅保留着task, 将activity
-finish 掉
+其中 finish(false), 其中false 表示是否直接移掉activity所在的task.
+当值为false时，需要请求finish activity.
+
 
 ```java
 public final boolean finishActivity(IBinder token, int resultCode, Intent resultData,
