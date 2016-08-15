@@ -17,7 +17,8 @@ startActivityUncheckedLocked
                 // instance of it in the history, and it is always in its own
                 // unique task, so we do a special search.
                 Log.d("bobby", "ASS startActivityUncheckedLocked --- find ActivityRecord");
-				//非 launchSingleInstance, 直接从task里找ActivityRecord,这里查找是在每个task里查找是否在最上面，如果是在最上面，那么直接bring to front
+				//非 launchSingleInstance, 直接从所有stack的所有task里找ActivityRecord 注意只查找最top的activity，
+				如果ActivityRecord是在最上面，那么直接bring to front. 这里查找 出来的 intentActivity是Launcher3的Launcher activity
                 ActivityRecord intentActivity = !launchSingleInstance ?
                         findTaskLocked(r) : findActivityLocked(intent, r.info);
                 Log.d("bobby", "ASS startActivityUncheckedLocked find intentActivity:" + intentActivity);
@@ -52,8 +53,10 @@ startActivityUncheckedLocked
                     // being started, which means not bringing it to the front
                     // if the caller is not itself in the front.
                     final ActivityStack focusStack = getFocusedStack();
+					//当前的focused stack还是非home stack的那个stack, 因为现在还是HelloWorld获得焦点的
                     ActivityRecord curTop = (focusStack == null)
                             ? null : focusStack.topRunningNonDelayedActivityLocked(notTop);
+					//这里获得的 curTop自然是 HelloWorld里的MainActivity
                     boolean movedToFront = false;
                     if (curTop != null && (curTop.task != intentActivity.task ||
                             curTop.task != focusStack.topTask())) {
@@ -66,6 +69,8 @@ startActivityUncheckedLocked
                                 intentActivity.setTaskToAffiliateWith(sourceRecord.task);
                             }
                             movedHome = true;
+							//现在因为要 targetStack 中找到了那个task, 那么自然应该将他move 到前端等着resume.
+							//事实上这个函数就会接着resume. 而startActivityUncheckedLocked 就会返回了
                             targetStack.moveTaskToFrontLocked(intentActivity.task, noAnimation,
                                     options, r.appTimeTracker, "bringingFoundTaskToFront");
                             Log.d("bobby", "ASS moveTaskToFrontLocked ---===---- done");
@@ -79,3 +84,47 @@ startActivityUncheckedLocked
                             options = null;
                         }
                     }
+					...
+				}
+
+//将Launcher3所在的task 移动到前端
+    final void moveTaskToFrontLocked(TaskRecord tr, boolean noAnimation, Bundle options,
+            AppTimeTracker timeTracker, String reason) {
+        if (DEBUG_SWITCH) Slog.v(TAG_SWITCH, "moveTaskToFront: " + tr);
+
+        final int numTasks = mTaskHistory.size();
+        final int index = mTaskHistory.indexOf(tr);
+
+        if (timeTracker != null) {
+            // The caller wants a time tracker associated with this task.
+            for (int i = tr.mActivities.size() - 1; i >= 0; i--) {
+                tr.mActivities.get(i).appTimeTracker = timeTracker;
+            }
+        }
+
+        // Shift all activities with this task up to the top
+        // of the stack, keeping them in the same internal order.
+        insertTaskAtTop(tr, null);
+
+        // Set focus to the top running activity of this stack.
+        ActivityRecord r = topRunningActivityLocked(null);
+        mService.setFocusedActivityLocked(r, reason);
+
+        if (DEBUG_TRANSITION) Slog.v(TAG_TRANSITION, "Prepare to front transition: task=" + tr);
+        if (noAnimation) {
+            mWindowManager.prepareAppTransition(AppTransition.TRANSIT_NONE, false);
+            if (r != null) {
+                mNoAnimActivities.add(r);
+            }
+            ActivityOptions.abort(options);
+        } else {
+            updateTransitLocked(AppTransition.TRANSIT_TASK_TO_FRONT, options);
+        }
+
+        mStackSupervisor.resumeTopActivitiesLocked();
+        EventLog.writeEvent(EventLogTags.AM_TASK_TO_FRONT, tr.userId, tr.taskId);
+
+        if (VALIDATE_TOKENS) {
+            validateAppTokensLocked();
+        }
+    }
