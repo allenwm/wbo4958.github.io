@@ -34,7 +34,7 @@ tags:  [activity lifecyle]
 
 ### 2. 整个流程图如下所示
 
-![](/assets/images/android/activitylifecycle/Launcher_start_helloworld_and_press_back.png activity finish的流程图)
+<div align="center"><img src="/assets/images/android/activitylifecycle/Launcher_start_helloworld_and_press_back.png" alt="activity lifecycle-finish"/></div>
 
 > ActivityStack/AMS/ASS 属于 system 进程  
 > MainActivity/ActivityThread 属于HelloWorld进程 <br>
