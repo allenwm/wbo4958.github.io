@@ -34,7 +34,7 @@ tags:  [activity lifecyle]
 
 ## 2. 整个流程图如下所示
 
-<div align="center" id="flow_chart"><img src="images/Launcher_start_helloworld_and_press_back.png" alt="activity lifecycle-finish"/></div>
+![](images/Launcher_start_helloworld_and_press_back.png)
 图2.1 activity finish流程
 
 > ActivityStack/AMS/ASS 属于 system 进程  
