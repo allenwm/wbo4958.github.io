@@ -34,7 +34,8 @@ tags:  [activity lifecyle]
 
 ## 2. 整个流程图如下所示
 
-![](images/Launcher_start_helloworld_and_press_back.png)
+<div align="center" id="flow_chart"><img src="/assets/images/android/activitylifecycle/Launcher_start_helloworld_and_press_back.png" alt="activity lifecycle-finish"/></div>
+
 图2.1 activity finish流程
 
 > ActivityStack/AMS/ASS 属于 system 进程  
@@ -53,7 +54,7 @@ AMS通知HelloWorld所在的stack开始pausing MainActivity, 调用 startPausing
 **3.2 PAUSED/STOPPING**
 
 <span id="paused_stopping">
-当AMS 收到 activityPaused通知后，表明MainActivity已经Paused了， 这时就需要将MainActivity在AMS 里的状态置为PAUSED</span
+当AMS 收到 activityPaused通知后，表明MainActivity已经Paused了， 这时就需要将MainActivity在AMS 里的状态置为PAUSED</span>
 
 ```java
 final ActivityRecord finishCurrentActivityLocked(ActivityRecord r, int mode, boolean oomAdj) {
