@@ -79,14 +79,16 @@ void readInstallPermissionsLPr(XmlPullParser parser,
     if (granted) {
         permissionsState.grantInstallPermission(bp) //grant安装权限
 ```
+
 #### 2.1.3 grantInstallPermission
 
 这些安装权限是apk在安装时自动grant的，都是normal的等级，不是dangeous权限。
-//该函数的主要作用是
+该函数的主要作用是
 - 生成permission对应的PermissionData，并用加入到PermissionsState mPermissions里
 - 对用户id,grant权限，即生成PermissionState对象，并用mUserStates来track.
 
 ### 2.2 从/data/system/users/x/runtime-permissions.xml 读取runtime权限, 并grant
+
 ```java
     for (UserInfo user : users) {
         mRuntimePermissionsPersistence.readStateForUserSyncLPr(user.id);
@@ -103,6 +105,7 @@ void readInstallPermissionsLPr(XmlPullParser parser,
 ```
 
 如下面这个package版本，摘自/data/system/package.xml
+
 ```xml
 <package name="com.android.tv.settings" codePath="/system/priv-app/TvSettings" nativeLibraryPath="/system/priv-app/TvSettings/lib" primaryCpuAbi="arm64-v8a" publicFlags="944291397" privateFlags="8" ft="1539c6151e8" it="1539c6151e8" ut="1539c6151e8" version="1" sharedUserId="1000">
         <sigs count="1">
@@ -115,6 +118,7 @@ void readInstallPermissionsLPr(XmlPullParser parser,
 ```
 
 <div align="center"><img src="/assets/images/android/permissions/pkms_permissions.png" alt="packagemanagerservice permissions"/></div>
+
 图2 PackageManagerService与Permissions的UML图
 
 注意：如果是系统第一次开机的时候，系统里是没有package.xml的，那么将不会生成package对应的PackageSetting, 在这种情况下，PackageSetting在扫描apk文件时进行生成.
@@ -370,7 +374,7 @@ android.uid.system的runtime权限. (来自runtime-permissions.xml)
 
 Shared userId的类图，如下
 
-<div align="center"><img src="/assets/images/android/permissions/shared_userId_permissions.png" alt="sharedUserId permissions"//></div>
+<div align="center"><img src="/assets/images/android/permissions/shared_userId_permissions.png" alt="sharedUserId permissions"/></div>
 
 图6 sharedUserId与Permissions的UML图
 
@@ -385,6 +389,7 @@ sharedUser.addPackage(p); //加入到SharedUserSetting里的packages里，这样
 p.sharedUser = sharedUser;
 p.appId = sharedUser.userId;
 ```
+
 那么代码是如何是保证拥有一样的UID具有相同的权限呢？所有的install, signature, dangeous权限都是由该函数grant的，
 
 ```java
@@ -407,7 +412,6 @@ public PermissionsState getPermissionsState() {
 2. 一个apk在安装的时候已经将非运行时权限直接grant给设备上所有的用户，而运行时权限是跟权限直接相关的.
 3. 一个apk可以申请permission, 即用<uses-permission />表示，也可以自定义权限，如systemserver相关的权限大多是在 framework-res.apk里定义的。
 4. 具体相同的sharedUserId的package拥有相同的permission, 代码中使用的是Shared UID的permissions, 且该permissions是所有sharedUserId的合集。
-
 
 ## 9. Reference&进一步阅读
 [android permissions](http://developer.android.com/intl/ja/guide/topics/security/permissions.html)
