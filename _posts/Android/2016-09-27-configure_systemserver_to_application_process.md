@@ -7,11 +7,15 @@ tags:  [systemserver]
 ---
 {% include JB/setup %}
 
->这节主要是介绍Android是怎样将system_server这个系统进程配置成android的application的运行环境的，其中会涉及到framework-res.apk , SettingsProvider.apk
+> 这节主要是介绍Android是怎样将system_server这个系统进程配置成android的application的运行环境的，
+> 其中会涉及到framework-res.apk , SettingsProvider.apk
+>
+> 注: 该篇代码是基本 Android M 6.0.1
 
 ### 一、framework-res.apk
->framework-res.apk 是android framework相关的资源文件apk,  里面保存了framework使用到的一些layout, 图片，string值等等，并且也会声明一些系统级的Activity.<br>
-项目地址: frameworks/base/core/res
+
+> framework-res.apk 是android framework相关的资源文件apk,  里面保存了framework使用到的layout、图片、string等资源， 同时也会声明一些系统级的Activity.
+> 项目地址: frameworks/base/core/res
 
 #### 1.1 Android.mk
 
@@ -20,69 +24,82 @@ LOCAL_PACKAGE_NAME := framework-res
 LOCAL_CERTIFICATE := platform
 LOCAL_EXPORT_PACKAGE_RESOURCES := true  
 ```
-其中LOCAL_EXPORT_PACKAGE_RESOURCES为true, 表示允许framework-res.apk里的资源可以被其它app使用.
+其中**LOCAL_EXPORT_PACKAGE_RESOURCES** 为true, 表示允许framework-res.apk里的资源可以被其它app使用.
 
 #### 1.2 AndroidManifest.mk
+
+- 配置成system sharedUserId
+
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-package="android"
-coreApp="true"
-android:sharedUserId="android.uid.system"   <!--system权限-->
-android:sharedUserLabel="@string/android_system_label">
+    package="android"
+    coreApp="true"
+    android:sharedUserId="android.uid.system"
+    <!--system权限-->
+    android:sharedUserLabel="@string/android_system_label"
+>
 ```
-从manifest里可以看出framework-res.apk的package name 为 “android”, 且要运行在system进程里
 
-```java
+    从manifest里可以看出framework-res.apk的package name 为 “android”, 且要运行在system进程中.
+
+- 定义了很多protected-broadcast
+
+```xml
 <protected-broadcast android:name="android.intent.action.SCREEN_OFF" />
 <protected-broadcast android:name="android.intent.action.SCREEN_ON" />
 ```
-接着定义了很多protected-broadcast，表明该广播只能由系统级应用发出。PackageManagerService会解析该属性, 在系统运作起来之后，如果某个不具有系统权限的应用试图发送系统中的“保护性广播”，那么到AMS的broadcastIntentLocked()处就会被拦住，AMS会抛出异常，提示
+    表明该广播只能由系统级应用发出。PackageManagerService会解析该属性,
+    在系统运作起来之后，如果某个不具有系统权限的应用试图发送系统中的“保护性广播”，那么到AMS的broadcastIntentLocked()
+    处就会被拦住，AMS会抛出异常，提示
 
 ```console
-java.lang.SecurityException: Permission Denial: not allowed to send broadcast android.intent.action.SCREEN_OFF from pid=3225, uid=10068
+java.lang.SecurityException: Permission Denial: not allowed to send broadcast
+android.intent.action.SCREEN_OFF from pid=3225, uid=10068
 ```
-接着定义一些permission与permission-group
 
-```java
-    <!-- Allows an application to send SMS messages.
-         <p>Protection level: dangerous
-    -->
-    <permission android:name="android.permission.SEND_SMS"
-        android:permissionGroup="android.permission-group.SMS"
-        android:label="@string/permlab_sendSms"
-        android:description="@string/permdesc_sendSms"
-        android:permissionFlags="costsMoney"
-        android:protectionLevel="dangerous" />
+- 定义一些permission与permission-group
+
+```xml
+<!-- Allows an application to send SMS messages.
+     <p>Protection level: dangerous
+-->
+<permission android:name="android.permission.SEND_SMS"
+    android:permissionGroup="android.permission-group.SMS"
+    android:label="@string/permlab_sendSms"
+    android:description="@string/permdesc_sendSms"
+    android:permissionFlags="costsMoney"
+    android:protectionLevel="dangerous" />
 
     <!-- Allows an application to receive SMS messages.
          <p>Protection level: dangerous
     -->
-    <permission android:name="android.permission.RECEIVE_SMS"
-        android:permissionGroup="android.permission-group.SMS"
-        android:label="@string/permlab_receiveSms"
-        android:description="@string/permdesc_receiveSms"
-        android:protectionLevel="dangerous"/>
+<permission android:name="android.permission.RECEIVE_SMS"
+    android:permissionGroup="android.permission-group.SMS"
+    android:label="@string/permlab_receiveSms"
+    android:description="@string/permdesc_receiveSms"
+    android:protectionLevel="dangerous"/>
 ```
 
-[permission-element](http://developer.android.com/guide/topics/manifest/permission-element.html)用来作为安全权限限制访问一些特殊的模块或者features或者其它应用程序。<br>
-若其它程序要使用，必须要声明
+    [permission-element](http://developer.android.com/guide/topics/manifest/permission-element.html)用来作为安全权限限制访问一些特殊的模块或者features或者其它应用程序。<br>
+    若其它程序要使用，必须要声明
 
 ```xml
-<use-permission />
+    <use-permission />
 ```
 
-接下来看下它的主application
+- 定义主application
 
-```java
-   <application android:process="system"  
-        android:persistent="true"   //persistent进程
-        android:hasCode="false"  //没有application的code,
-        android:label="@string/android_system_label"
-        android:allowClearUserData="false"
-        android:backupAgent="com.android.server.backup.SystemBackupAgent"
-        android:killAfterRestore="false"
-        android:icon="@drawable/ic_launcher_android"
-        android:supportsRtl="true">
+```xml
+<application android:process="system"  
+    android:persistent="true"   //persistent进程
+    android:hasCode="false"  //没有application的code,
+    android:label="@string/android_system_label"
+    android:allowClearUserData="false"
+    android:backupAgent="com.android.server.backup.SystemBackupAgent"
+    android:killAfterRestore="false"
+    android:icon="@drawable/ic_launcher_android"
+    android:supportsRtl="true">
+
     <!--定义一些activity-->
     <activity android:name="com.android.internal.app.ChooserActivity"
         android:theme="@style/Theme.DeviceDefault.Resolver"
@@ -91,18 +108,22 @@ java.lang.SecurityException: Permission Denial: not allowed to send broadcast an
         android:documentLaunchMode="never"
         android:relinquishTaskIdentity="true"
 ```
-默认所有的components都运行在system进程, 当然前提是有相同的shared User ID,和相同的certificate (Android.mk里定义了platform)
+
+    默认所有的components都运行在system进程, 当然前提是有相同的shared User ID, 和相同的签名
+    (Android.mk里定义了platform)
 
 ### 二、SettingsProvider.apk
 
->SettingsProvider.apk 是一个ContentProvider, 主要用来提供系统的Settings的值等，它是运行是system进程中的，因为system进程里面有很多service, 这些service都可能需要访问到SettingsProvider里的值，因此将SettingsProvider.apk跑在system进程中可以避免不必要的跨进程间消耗. 参见邓凡平的android 系统2
+> SettingsProvider.apk 是一个ContentProvider, 主要用来提供系统的Settings的值等，它是运行
+是system进程中的，因为system进程里面有很多service, 这些service都可能需要访问到SettingsProvider里的值，
+因此将SettingsProvider.apk跑在system进程中可以避免不必要的跨进程间消耗. 参见邓凡平的android 系统2
 
 #### 2.1 Android.mk
 
 ```console
 LOCAL_MODULE_TAGS := optional  
 LOCAL_SRC_FILES := $(call all-subdir-java-files) \
-    		src/com/android/providers/settings/EventLogTags.logtags
+		src/com/android/providers/settings/EventLogTags.logtags
 LOCAL_JAVA_LIBRARIES := telephony-common ims-common
 LOCAL_PACKAGE_NAME := SettingsProvider
 LOCAL_CERTIFICATE := platform   //platform签名
@@ -111,6 +132,7 @@ LOCAL_PRIVILEGED_MODULE := true //privileged的apk
 从上面可以看出, SettingsProvider.apk也是platform签名
 
 #### 2.2 AndroidManifest.xml
+
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.android.providers.settings"
@@ -128,7 +150,8 @@ LOCAL_PRIVILEGED_MODULE := true //privileged的apk
 
         <!-- todo add: android:neverEncrypt="true" -->
 
-        <provider android:name="SettingsProvider"          android:authorities="settings"
+        <provider android:name="SettingsProvider"
+            android:authorities="settings"
             android:multiprocess="false"
             android:exported="true"  
             //其它application可通过 URL访问该Provider
@@ -137,11 +160,12 @@ LOCAL_PRIVILEGED_MODULE := true //privileged的apk
     </application>
 </manifest>
 ```
-从AndroidManifest.xml中定义来看，SettingsProvider.apk里所有的组件默认也是运行在system进程， 且SettingsProvider.apk这个进程是system权限
+从AndroidManifest.xml中定义来看，SettingsProvider.apk里所有的组件默认也是运行在system进程，
+且SettingsProvider.apk这个进程是system权限
 
 ### 三、配置 SystemServer为Android application的环境
 
-接下来这节主要来介绍如何将SystemServer配置成android应用程序的运行环境<br>
+接下来这节主要来介绍如何将SystemServer配置成android应用程序的运行环境
 整个简化的流程如下所示:
 
 ```java
@@ -166,7 +190,8 @@ private void run() {
 ```
 
 #### 3.1 createSystemContext
-每个android 应用程序在进行初始化的时候首先都会生成一个全局的Applicaton实例(不管代码有没有去实现这个一个application). <br>
+
+每个android 应用程序在进行初始化的时候首先都会生成一个全局的Applicaton实例(不管代码有没有去实现这个一个application).
 而createSystemContext创建的系统上下文就是去生成这样一个Application实例。
 
 ```java
@@ -248,8 +273,11 @@ public Application makeApplication(boolean forceDefaultAppClass,
     return app;
 }
 ```
+
 #### 3.2 setSystemProcess
-> createSystemContext 仅仅是将应用程序的环境准备好，如ActivityThread, Application， context等等。里面还没有一些真正意义上的程序、资源，仅仅是一个进程空壳。
+
+> createSystemContext 仅仅是将应用程序的环境准备好，如ActivityThread, Application， context等等。
+里面还没有一些真正意义上的程序、资源，仅仅是一个进程空壳。
 
 ```java
 AMS setSystemProcess()
@@ -300,6 +328,7 @@ final ProcessRecord newProcessRecordLocked(ApplicationInfo info, String customPr
 ```
 
 #### 3.3 installSystemProviders
+
 > 为系统安装settings provider
 
 ```java
@@ -360,7 +389,7 @@ private void installContentProviders(
             results.add(cph);
         }
     }
-    //                ssssssssssssss
+
     try {
         ActivityManagerNative.getDefault().publishContentProviders(
             getApplicationThread(), results);
@@ -370,3 +399,9 @@ private void installContentProviders(
 ```
 
 ### 四、 SystemServer的ActivityThread安装图
+
+<div align="center">
+    <img src="/assets/images/android/system_server/SystemServer_context.png"
+        alt="ystemServer的ActivityThread的安装图"/>
+</div>
+图1 SystemServer的ActivityThread的安装图
