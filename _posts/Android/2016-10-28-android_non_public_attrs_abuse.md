@@ -45,6 +45,7 @@ adb shell dumpsys activity activities
 
 
 主要分为三步：
+
 - 启动 AlwaysFocusablePipActivity
 - 将 AlwaysFocusablePipActivity 从stack 1 移动到 PIP stack (stack id 4).
 - dump activity的activities信息， 检查  mFocusedStack 是否 stack id为4.
@@ -55,8 +56,8 @@ adb shell dumpsys activity activities
 mFocusedStack=ActivityStack{7d928bf stackId=4, 2 tasks}
 ```
 
-关键是 adb shell am stack move-top-activity-to-pinned-stack 1 0 0 500 500 这句命令，背后的目的就是将
-AlwaysFocusablePipActivity 从stack 1 移动到 PINNED stack (stack id 4), 然后将 PINNED Stack设置为 Focused
+关键是 *adb shell am stack move-top-activity-to-pinned-stack 1 0 0 500 500* 这句命令，背后的目的就是将
+ *AlwaysFocusablePipActivity* 从stack 1 移动到 PINNED stack (stack id 4), 然后将 PINNED Stack设置为 Focused
 的stack.
 
 Tracking
