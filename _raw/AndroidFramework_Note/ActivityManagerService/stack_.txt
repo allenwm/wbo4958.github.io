@@ -1,0 +1,33 @@
+接下来看下 getStack
+
+```java
+ActivityStack getStack(int stackId, boolean createStaticStackIfNeeded, boolean createOnTop) {
+
+    if (!createStaticStackIfNeeded || !StackId.isStaticStack(stackId)) {
+        return null;
+    }
+    return createStackOnDisplay(stackId, Display.DEFAULT_DISPLAY, createOnTop);
+}
+```
+
+在 Android 7.0 以上， 静态的stack 只有5个， (在Android 7.0 以下，静态栈只有一个 home stack)
+
+- HOME_STACK_ID 0
+
+    Launcher所在的 Stack
+
+- FULLSCREEN_WORKSPACE_STACK_ID 1
+
+    全屏的 activities 所在的 stack
+
+- FREEFORM_WORKSPACE_STACK_ID 2
+
+    freeform/resized 的 activities 所在的 stack
+
+- DOCKED_STACK_ID 3
+
+    占据着固定区域的 activities 所在的stack
+
+- PINNED_STACK_ID 4
+
+    PIP stack
