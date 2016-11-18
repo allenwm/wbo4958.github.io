@@ -7,7 +7,7 @@ tags:  [home应用启动]
 ---
 {% include JB/setup %}
 
-> 这篇 blog 主要是记录 自己对于 Android Stack 的理解
+> 这篇 blog 主要是记录自己对于Android Stack的理解
 
 ### 环境
 
@@ -35,7 +35,6 @@ tags:  [home应用启动]
 - TaskRecord
     表示一个任务
 
-
 <div align="center">
     <img src="assets\images\android\AMS\home_starting.png"
      alt="Home 应用启动"/>
@@ -58,7 +57,7 @@ void setWindowManager(WindowManagerService wm) {
 
  现在来看下  mHomeStack, mFocusedStack, mLastFocusedStack的定义
 
- ``` java
+``` java
  /** The stack containing the launcher app. Assumed to always be attached to
  * Display.DEFAULT_DISPLAY. */
 ActivityStack mHomeStack;
@@ -70,13 +69,12 @@ ActivityStack mFocusedStack;
  * been resumed. If stacks are changing position this will hold the old stack until the new
  * stack becomes resumed after which it will be set to mFocusedStack. */
 private ActivityStack mLastFocusedStack;
- ```
+```
 
 mHomeStack 是包含有 launcher app, 应该是HOME 应用的栈，它的stack id 是 HOME_STACK_ID 为 0
 
 为什么需要在这里初始化 home stack 呢？
 因为马上要启动 home 应用了。
-
 
 ### 获得HOME Activity 信息
 
@@ -162,9 +160,7 @@ ActivityRecord r = new ActivityRecord(mService, callerApp, callingUid, callingPa
 
 在找到的home stack中创建 TaskRecord, 并建立 Stack/TaskRecord/ActivityRecord 之间的联系
 
-
 既然 Stack/Task 已经建立好了，那么就可以在 Home stack 启动 Launcher了
-
 
 ### 通知 Zygnote 创建进程并运行 ActivityThread
 
